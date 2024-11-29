@@ -3,15 +3,20 @@ package com.example.qr_reader_app.ui;
 import android.Manifest;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.ScrollView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContract;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.PackageManagerCompat;
@@ -49,7 +54,59 @@ public class MainActivity extends AppCompatActivity {
     });
 
     private void setResult(String contents) {
-        binding.textResult.setText(contents); //output the result in the app
+        //check url validity
+        if (contents.startsWith("http://") || contents.startsWith("https://")) {
+            //alert window to confirm redirect
+            new AlertDialog.Builder(this)
+                    .setTitle("Confirm redirect")
+                    .setMessage("Do you want to open this link?\n"+contents)
+                    .setPositiveButton("Yes", (dialog, which) -> {
+                        //open url in browser
+                        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(contents));
+                        startActivity(browserIntent);
+                    })
+                    .setNegativeButton("No", (dialog, which) -> {
+                        dialog.dismiss();
+                    })
+                    .show();
+        } else {
+            int maxSymbols = 75;
+            if (contents.length() > maxSymbols) {
+                //formatting too long message
+                String truncatedMessage = contents.substring(0, maxSymbols-2) + "...";
+                binding.textResult.setText("«" + truncatedMessage + "»");
+
+                //notify the user the message is too long
+                Toast.makeText(this, "Message is too long", Toast.LENGTH_SHORT).show();
+
+                //click listener to show the full message
+                binding.textResult.setVisibility(View.VISIBLE);
+                binding.viewFullMessage.setVisibility(View.VISIBLE);
+                binding.viewFullMessage.setOnClickListener(view -> showFullMessageDialog(contents));
+            } else {
+                binding.textResult.setText("«" + contents + "»");
+                binding.textResult.setOnClickListener(null);
+            }
+            binding.textResult.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void showFullMessageDialog(String message) {
+        // Create a dialog
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Full Message");
+
+        //scrollable TextView
+        ScrollView scrollView = new ScrollView(this);
+        TextView textView = new TextView(this);
+        textView.setText(message);
+        textView.setPadding(16, 16, 16, 16);
+        textView.setTextSize(16);
+        scrollView.addView(textView);
+
+        builder.setView(scrollView);
+        builder.setPositiveButton("Close", (dialog, which) -> dialog.dismiss());
+        builder.create().show();
     }
 
     private void showCamera(){
@@ -69,11 +126,14 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         initBiding();
         initViews(); //ui event listener
+        binding.viewFullMessage.setVisibility(View.INVISIBLE);
     }
 
     private void initViews() {
         binding.fabStandard.setOnClickListener(view -> {
            checkPermissionAndShowActivity(this);
+            binding.viewFullMessage.setVisibility(View.INVISIBLE);
+            binding.textResult.setText(null);
         });
     }
 
@@ -92,5 +152,11 @@ public class MainActivity extends AppCompatActivity {
     private void initBiding(){
         binding = ActivityMainBinding.inflate(getLayoutInflater()); // interact wit views w/o findViewById
         setContentView(binding.getRoot());
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        //cancel any operations related to the UI or activity lifecycle
     }
 }
